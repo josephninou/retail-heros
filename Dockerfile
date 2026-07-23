@@ -2,13 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Installer les dépendances système
+# Installer les dépendances système (corrigé pour Debian 12)
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
-    libxrender-dev \
+    libxrender1 \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -22,7 +22,7 @@ RUN python -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"
 # Copier le code
 COPY main.py .
 
-# Créer les dossiers nécessaires (vides si besoin)
+# Créer les dossiers nécessaires
 RUN mkdir -p uploads
 
 EXPOSE 8000
