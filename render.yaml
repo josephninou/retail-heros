@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: retail-heros
+    runtime: docker
+    plan: free
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: YOLO_MODEL
+        value: "yolov8n.pt"
