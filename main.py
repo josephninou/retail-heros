@@ -1,5 +1,5 @@
 """
-Retail-Heros — Backend FastAPI
+Retail-Heros - Backend FastAPI
 Analyse de lineaire supermarche avec YOLOv8 + EasyOCR
 """
 
@@ -27,7 +27,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 BRANDS = [
     "Coca-Cola", "Pepsi", "Nestle", "Danone", "Unilever", "Procter & Gamble",
-    "L'Oreal", "Mondelez", "Kellogg's", "Kraft Heinz", "Mars", "Ferrero",
+    "L-Oreal", "Mondelez", "Kellogg's", "Kraft Heinz", "Mars", "Ferrero",
     "Red Bull", "Nescafe", "Lipton", "Evian", "Volvic", "Cristaline",
     "Lay's", "Doritos", "Pringles", "Oreo", "Nutella", "Kinder",
     "Milka", "Lindt", "Haribo", "M&M's", "Snickers", "Twix",
@@ -38,4 +38,4 @@ BRANDS = [
     "Monoprix", "Leader Price", "Intermarche", "E.Leclerc", "Lidl", "Aldi"
 ]
 
-CATEGORIES = ["Boissons", "Snacks", "
+CATEGORIES = ["Boissons", "Snacks
