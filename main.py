@@ -13,6 +13,7 @@ import io
 import base64
 import json
 import random
+import tempfile
 from datetime import datetime
 from typing import List, Dict, Any
 from PIL import Image
@@ -21,10 +22,10 @@ import numpy as np
 # ============================================================
 # Configuration
 # ============================================================
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# Utilisation du dossier temporaire système pour Render
+UPLOAD_DIR = tempfile.gettempdir()
 
-# Liste des marques connues pour fallback (pas besoin de CLIP)
+# Liste des marques connues pour fallback
 BRANDS = [
     "Coca-Cola", "Pepsi", "Nestlé", "Danone", "Unilever", "Procter & Gamble",
     "L'Oréal", "Mondelez", "Kellogg's", "Kraft Heinz", "Mars", "Ferrero",
@@ -51,7 +52,7 @@ app.add_middleware(
 )
 
 # ============================================================
-# Chargement lazy des modèles IA (un par un, pas tous en même temps)
+# Chargement lazy des modèles IA
 # ============================================================
 _yolo_model = None
 _ocr_reader = None
@@ -61,10 +62,8 @@ def get_yolo():
     if _yolo_model is None:
         try:
             from ultralytics import YOLO
-            # Utiliser yolov8n (le plus léger : 6MB)
             model_path = os.environ.get("YOLO_MODEL", "yolov8n.pt")
             if not os.path.exists(model_path):
-                # Télécharger automatiquement si pas présent
                 _yolo_model = YOLO("yolov8n.pt")
             else:
                 _yolo_model = YOLO(model_path)
@@ -88,8 +87,6 @@ def get_ocr():
 # Analyse d'image
 # ============================================================
 def analyze_image(image_bytes: bytes) -> Dict[str, Any]:
-    """Analyse une image de rayon et retourne les résultats."""
-
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     img_array = np.array(image)
 
@@ -128,7 +125,6 @@ def analyze_image(image_bytes: bytes) -> Dict[str, Any]:
         except Exception as e:
             print(f"Erreur YOLO: {e}")
 
-    # Si YOLO échoue ou n'est pas dispo -> simulation réaliste
     if not detections:
         detections = simulate_detections(image.width, image.height)
         results["simulated"] = True
@@ -143,7 +139,6 @@ def analyze_image(image_bytes: bytes) -> Dict[str, Any]:
         try:
             ocr_results = ocr.readtext(img_array)
             for (bbox, text, conf) in ocr_results:
-                # Chercher des patterns de prix
                 import re
                 price_match = re.search(r'(\d+[.,]\d{2})', text)
                 if price_match:
@@ -157,14 +152,12 @@ def analyze_image(image_bytes: bytes) -> Dict[str, Any]:
         except Exception as e:
             print(f"Erreur OCR: {e}")
 
-    # Si OCR échoue -> simulation
     if not prices:
         prices = simulate_prices(len(detections))
 
     # --- Étape 3: Attribution marques ---
     brand_counts = {}
     for i, det in enumerate(detections):
-        # Attribution pseudo-aléatoire mais stable basée sur la position
         brand_idx = (det["bbox"][0] + det["bbox"][1]) % len(BRANDS)
         brand = BRANDS[brand_idx]
         det["brand"] = brand
@@ -187,10 +180,8 @@ def analyze_image(image_bytes: bytes) -> Dict[str, Any]:
             "percentage": round((count / total) * 100, 1) if total > 0 else 0,
         }
 
-    # Trier par part de marché
     market_share = dict(sorted(market_share.items(), key=lambda x: x[1]["percentage"], reverse=True))
 
-    # --- Assemblage résultats ---
     results["products"] = detections
     results["prices"] = prices
     results["brands"] = brand_counts
@@ -204,7 +195,6 @@ def analyze_image(image_bytes: bytes) -> Dict[str, Any]:
     return results
 
 def simulate_detections(width: int, height: int) -> List[Dict]:
-    """Génère des détections simulées réalistes."""
     n = random.randint(8, 25)
     detections = []
     for i in range(n):
@@ -220,7 +210,6 @@ def simulate_detections(width: int, height: int) -> List[Dict]:
     return detections
 
 def simulate_prices(n: int) -> List[Dict]:
-    """Génère des prix simulés réalistes."""
     prices = []
     for _ in range(n):
         prices.append({
@@ -237,7 +226,6 @@ def simulate_prices(n: int) -> List[Dict]:
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    """Page d'accueil avec l'application SPA."""
     return HTMLResponse(content=INDEX_HTML)
 
 @app.get("/api/health")
@@ -246,7 +234,6 @@ async def health():
 
 @app.post("/api/analyze")
 async def analyze(file: UploadFile = File(...)):
-    """Analyse une image de rayon."""
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "Fichier non-image")
 
@@ -254,13 +241,11 @@ async def analyze(file: UploadFile = File(...)):
     if len(contents) > 10 * 1024 * 1024:
         raise HTTPException(413, "Image trop lourde (max 10MB)")
 
-    # Sauvegarde
     filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}"
     filepath = os.path.join(UPLOAD_DIR, filename)
     with open(filepath, "wb") as f:
         f.write(contents)
 
-    # Analyse
     results = analyze_image(contents)
     results["filename"] = filename
 
@@ -272,17 +257,20 @@ async def list_brands():
 
 @app.get("/api/history")
 async def get_history():
-    """Retourne l'historique des analyses."""
     history = []
-    for f in sorted(os.listdir(UPLOAD_DIR), reverse=True)[:20]:
-        history.append({
-            "filename": f,
-            "date": datetime.fromtimestamp(os.path.getctime(os.path.join(UPLOAD_DIR, f))).isoformat(),
-        })
+    try:
+        files = [f for f in os.listdir(UPLOAD_DIR) if os.path.isfile(os.path.join(UPLOAD_DIR, f))]
+        for f in sorted(files, reverse=True)[:20]:
+            history.append({
+                "filename": f,
+                "date": datetime.fromtimestamp(os.path.getctime(os.path.join(UPLOAD_DIR, f))).isoformat(),
+            })
+    except Exception:
+        pass
     return {"history": history}
 
 # ============================================================
-# Frontend SPA intégré (pas besoin de dossier templates/)
+# Frontend SPA
 # ============================================================
 
 INDEX_HTML = """<!DOCTYPE html>
@@ -344,9 +332,9 @@ footer{text-align:center;padding:40px 20px;color:var(--muted);font-size:.9rem}
 <div id="alert" class="alert"></div>
 
 <div class="tabs">
-<button class="tab-btn active" onclick="showTab('analyze')">Analyser</button>
-<button class="tab-btn" onclick="showTab('history')">Historique</button>
-<button class="tab-btn" onclick="showTab('about')">A propos</button>
+<button class="tab-btn active" onclick="showTab(event, 'analyze')">Analyser</button>
+<button class="tab-btn" onclick="showTab(event, 'history')">Historique</button>
+<button class="tab-btn" onclick="showTab(event, 'about')">A propos</button>
 </div>
 
 <div id="tab-analyze" class="tab-content active">
@@ -433,7 +421,6 @@ compter les facings et calculer la part de marche par marque.
 <script>
 let currentResult = null;
 
-// Drag & drop
 document.getElementById('dropZone').addEventListener('dragover', e => {
     e.preventDefault();
     e.currentTarget.classList.add('dragover');
@@ -455,10 +442,10 @@ function showAlert(msg, type='success') {
     setTimeout(() => el.style.display = 'none', 5000);
 }
 
-function showTab(name) {
+function showTab(evt, name) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    event.target.classList.add('active');
+    if(evt && evt.currentTarget) evt.currentTarget.classList.add('active');
     document.getElementById('tab-' + name).classList.add('active');
     if(name === 'history') loadHistory();
 }
@@ -497,7 +484,6 @@ async function analyzeImage(file) {
         showAlert(data.simulated ? 'Analyse terminee (mode simulation)' : 'Analyse IA terminee avec succes !');
     } catch(err) {
         showAlert('Erreur: ' + err.message, 'error');
-        // Mode demo offline
         currentResult = generateDemoResult();
         displayResults(currentResult);
         showAlert('Mode demo active (serveur indisponible)', 'error');
@@ -513,29 +499,27 @@ function displayResults(data) {
     document.getElementById('avgPrice').textContent = data.avg_price + '€';
     document.getElementById('modeLabel').textContent = data.simulated ? 'Simulation' : 'IA Reelle';
 
-    // Top marques
     const chart = document.getElementById('brandChart');
     chart.innerHTML = '';
     const top5 = Object.entries(data.market_share).slice(0, 5);
-    const maxVal = Math.max(...top5.map(x => x[1].count));
-    top5.forEach(([brand, info]) => {
-        const pct = (info.count / maxVal * 100).toFixed(0);
-        chart.innerHTML += '<div class="brand-bar"><span class="brand-name">' + brand + '</span><div class="brand-bar-fill" style="width:' + pct + '%;min-width:40px">' + info.percentage + '%</div></div>';
-    });
+    if(top5.length > 0) {
+        const maxVal = Math.max(...top5.map(x => x[1].count));
+        top5.forEach(([brand, info]) => {
+            const pct = maxVal > 0 ? (info.count / maxVal * 100).toFixed(0) : 0;
+            chart.innerHTML += '<div class="brand-bar"><span class="brand-name">' + brand + '</span><div class="brand-bar-fill" style="width:' + pct + '%;min-width:40px">' + info.percentage + '%</div></div>';
+        });
+    }
 
-    // Prix
     const priceList = document.getElementById('priceList');
     priceList.innerHTML = data.prices.slice(0, 8).map(p => 
         '<div class="stat"><span>' + (p.text || p.price + '€') + '</span><span class="stat-value">' + p.price + '€</span></div>'
     ).join('');
 
-    // Facings
     const facingList = document.getElementById('facingList');
     facingList.innerHTML = Object.entries(data.facings).slice(0, 8).map(([prod, count]) =>
         '<div class="stat"><span>' + prod + '</span><span class="stat-value">' + count + '</span></div>'
     ).join('');
 
-    // Market share complet
     const ms = document.getElementById('marketShare');
     ms.innerHTML = Object.entries(data.market_share).map(([brand, info]) =>
         '<div class="stat"><span>' + brand + '</span><span class="stat-value">' + info.count + ' produits (' + info.percentage + '%)</span></div>'
@@ -593,7 +577,7 @@ async function loadHistory() {
         const res = await fetch('/api/history');
         const data = await res.json();
         const list = document.getElementById('historyList');
-        if(!data.history.length) {list.innerHTML='<p style="color:var(--muted)">Aucune analyse pour le moment.</p>';return;}
+        if(!data.history || !data.history.length) {list.innerHTML='<p style="color:var(--muted)">Aucune analyse pour le moment.</p>';return;}
         list.innerHTML = data.history.map(h=>'<div class="stat"><span>' + h.filename + '</span><span class="stat-value">' + new Date(h.date).toLocaleString() + '</span></div>').join('');
     } catch(e) {
         document.getElementById('historyList').innerHTML='<p style="color:var(--muted)">Historique indisponible.</p>';
