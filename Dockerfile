@@ -1,7 +1,5 @@
 FROM python:3.10-slim
 
-# FORCE_REBUILD: 2026-07-24-18-30-00
-
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
@@ -11,6 +9,8 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+RUN pip install torch==1.13.1 torchvision==0.14.1 --no-cache-dir
 
 COPY . .
 
