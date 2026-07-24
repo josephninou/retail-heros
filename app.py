@@ -89,7 +89,8 @@ try:
             recent = recent + f"\n- {a.get('timestamp', '')[:16]}: {products} produits"
         if not recent:
             recent = "\n- Aucune analyse"
-        return f"### 👤 {stats['username']}\n- 📧 {stats.get('email', 'Pas d\'email')}\n- 📸 Analyses: {stats.get('analyses_count', 0)}\n- 📋 Dernières:{recent}"
+        # CORRECTION : utilisation de guillemets doubles à l'intérieur de la f-string
+        return f"### 👤 {stats['username']}\n- 📧 {stats.get('email', "Pas d'email")}\n- 📸 Analyses: {stats.get('analyses_count', 0)}\n- 📋 Dernières:{recent}"
 
     # ===== FONCTIONS ANALYSE =====
     def analyze_image(image):
