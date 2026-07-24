@@ -1,8 +1,0 @@
-services:
-  - type: web
-    name: retail-heros
-    runtime: docker
-    plan: free
-    branch: main
-    dockerfilePath: ./Dockerfile
-    healthCheckPath: /api/health
