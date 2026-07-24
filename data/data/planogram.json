@@ -1,0 +1,54 @@
+{
+  "shelves": [
+    {
+      "id": 1,
+      "products": [
+        {
+          "name": "candy",
+          "position": 0.1,
+          "facing": 6
+        },
+        {
+          "name": "snack",
+          "position": 0.3,
+          "facing": 5
+        },
+        {
+          "name": "bottle",
+          "position": 0.5,
+          "facing": 4
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "products": [
+        {
+          "name": "wine glass",
+          "position": 0.2,
+          "facing": 2
+        },
+        {
+          "name": "cup",
+          "position": 0.4,
+          "facing": 3
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "products": [
+        {
+          "name": "chair",
+          "position": 0.1,
+          "facing": 1
+        },
+        {
+          "name": "sofa",
+          "position": 0.4,
+          "facing": 1
+        }
+      ]
+    }
+  ]
+}
