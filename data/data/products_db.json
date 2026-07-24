@@ -1,0 +1,86 @@
+{
+  "bottle": {
+    "category": "Boissons",
+    "brand": "Coca-Cola",
+    "price": 2.5,
+    "stock_min": 10,
+    "facing_recommended": 4
+  },
+  "wine glass": {
+    "category": "Boissons",
+    "brand": "SOPEXA",
+    "price": 4.99,
+    "stock_min": 20,
+    "facing_recommended": 2
+  },
+  "cup": {
+    "category": "Boissons",
+    "brand": "Tefal",
+    "price": 3.49,
+    "stock_min": 15,
+    "facing_recommended": 3
+  },
+  "chair": {
+    "category": "Mobilier",
+    "brand": "IKEA",
+    "price": 89.99,
+    "stock_min": 5,
+    "facing_recommended": 1
+  },
+  "table": {
+    "category": "Mobilier",
+    "brand": "IKEA",
+    "price": 149.99,
+    "stock_min": 3,
+    "facing_recommended": 1
+  },
+  "tv": {
+    "category": "Électronique",
+    "brand": "Samsung",
+    "price": 599.99,
+    "stock_min": 3,
+    "facing_recommended": 1
+  },
+  "laptop": {
+    "category": "Électronique",
+    "brand": "Dell",
+    "price": 899.99,
+    "stock_min": 2,
+    "facing_recommended": 1
+  },
+  "cell phone": {
+    "category": "Téléphonie",
+    "brand": "Apple",
+    "price": 999.99,
+    "stock_min": 5,
+    "facing_recommended": 2
+  },
+  "book": {
+    "category": "Librairie",
+    "brand": "Hachette",
+    "price": 24.99,
+    "stock_min": 30,
+    "facing_recommended": 3
+  },
+  "candy": {
+    "category": "Confiserie",
+    "brand": "Haribo",
+    "price": 1.99,
+    "stock_min": 50,
+    "facing_recommended": 6
+  },
+  "snack": {
+    "category": "Alimentation",
+    "brand": "Lay's",
+    "price": 2.99,
+    "stock_min": 40,
+    "facing_recommended": 5
+  },
+  "sofa": {
+    "category": "Mobilier",
+    "brand": "IKEA",
+    "price": 299.99,
+    "stock_min": 2,
+    "facing_recommended": 1
+  }
+}
