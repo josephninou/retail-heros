@@ -1,19 +1,15 @@
 class ActionEngine:
     def __init__(self):
         self.thresholds = {
-            'min_sos': 10,  # Part de linéaire minimum
-            'max_gaps': 3,   # Nombre max de gaps acceptables
-            'min_fill_rate': 80,  # Taux de remplissage minimum
-            'min_compliance': 70  # Conformité planogramme minimum
+            'min_sos': 10,
+            'max_gaps': 3,
+            'min_fill_rate': 80,
+            'min_compliance': 70
         }
     
     def generate_actions(self, analysis_data):
-        """
-        Génère des actions recommandées basées sur l'analyse
-        """
         actions = []
         
-        # 1. Analyse du Share of Shelf
         share_of_shelf = analysis_data.get('facing_analysis', {}).get('share_of_shelf', {})
         for product, sos in share_of_shelf.items():
             if sos < self.thresholds['min_sos']:
@@ -26,7 +22,6 @@ class ActionEngine:
                     'category': 'Merchandising'
                 })
         
-        # 2. Analyse des gaps (ruptures)
         gaps = analysis_data.get('detected_gaps', [])
         if gaps:
             for gap in gaps:
@@ -40,7 +35,6 @@ class ActionEngine:
                     'category': 'Stock'
                 })
         
-        # 3. Analyse du taux de remplissage
         fill_rate = analysis_data.get('fill_rate', 0)
         if fill_rate < self.thresholds['min_fill_rate']:
             actions.append({
@@ -52,7 +46,6 @@ class ActionEngine:
                 'category': 'Stock'
             })
         
-        # 4. Analyse de la conformité planogramme
         compliance = analysis_data.get('planogram_compliance', 0)
         if compliance < self.thresholds['min_compliance']:
             actions.append({
@@ -64,28 +57,7 @@ class ActionEngine:
                 'category': 'Merchandising'
             })
         
-        # 5. Recommandations de prix
-        estimated_value = analysis_data.get('estimated_value', 0)
-        if estimated_value < 100:
-            actions.append({
-                'type': 'pricing',
-                'product': 'Tous',
-                'action': "💡 Valeur de stock faible. Considérer une promotion pour stimuler les ventes.",
-                'priority': 'low',
-                'impact': 'medium',
-                'category': 'Pricing'
-            })
-        
-        # Trier par priorité
         priority_order = {'urgent': 0, 'high': 1, 'medium': 2, 'low': 3}
         actions.sort(key=lambda x: priority_order.get(x.get('priority', 'low'), 4))
         
         return actions
-    
-    def get_priority_summary(self, actions):
-        """Résumé des priorités"""
-        summary = {'urgent': 0, 'high': 0, 'medium': 0, 'low': 0}
-        for action in actions:
-            priority = action.get('priority', 'low')
-            summary[priority] = summary.get(priority, 0) + 1
-        return summary
