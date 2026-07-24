@@ -2,9 +2,9 @@ import gradio as gr
 import os
 
 with gr.Blocks(title="Retail-Heros", theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# 🏪 Retail-Heros - Version Stable")
+    gr.Markdown("# 🏪 Retail-Heros - Version stable")
     gr.Markdown("L'application est en ligne et fonctionne correctement.")
-    
+
     with gr.Row():
         with gr.Column():
             gr.Markdown("### 🔐 Authentification")
@@ -19,5 +19,5 @@ if __name__ == "__main__":
         server_name="0.0.0.0",
         server_port=port,
         share=False,
-        root_path="/"
+        root_path="/"  # Important pour Render
     )
