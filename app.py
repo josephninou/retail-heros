@@ -218,15 +218,13 @@ try:
             fig.update_layout(height=500)
             return fig
         
-        # Subplots avec spécification des types
+        # Subplots compatibles
         fig = make_subplots(
             rows=2, cols=2,
-            specs=[[{"type": "pie"}, {"type": "xy"}],
-                   [{"type": "xy"}, {"type": "xy"}]],
             subplot_titles=("📊 Catégories", "🏷️ Marques", "📈 Taux de remplissage", "💰 Valeur du stock")
         )
         
-        # Catégories (pie)
+        # Catégories (Pie chart)
         categories = analysis.get('categories', {})
         if categories:
             fig.add_trace(
@@ -234,7 +232,7 @@ try:
                 row=1, col=1
             )
         
-        # Marques (bar)
+        # Marques (Bar chart)
         brands = analysis.get('brands', {})
         if brands:
             sorted_brands = sorted(brands.items(), key=lambda x: x[1], reverse=True)[:5]
@@ -243,7 +241,7 @@ try:
                 row=1, col=2
             )
         
-        # Taux de remplissage (indicator)
+        # Taux de remplissage (Gauge)
         fill_rate = analysis.get('fill_rate', 0)
         fig.add_trace(
             go.Indicator(
@@ -262,14 +260,14 @@ try:
             row=2, col=1
         )
         
-        # Valeur (indicator)
+        # Valeur (Number)
         estimated_value = analysis.get('estimated_value', 0)
         fig.add_trace(
             go.Indicator(mode="number", value=estimated_value, title={'text': "Valeur (€)"}),
             row=2, col=2
         )
         
-        fig.update_layout(height=550, showlegend=True)
+        fig.update_layout(height=550, showlegend=False)
         return fig
 
     def generate_report(analysis, metrics, actions):
@@ -356,7 +354,12 @@ try:
     if __name__ == "__main__":
         port = int(os.environ.get("PORT", 10000))
         print(f"🚀 Lancement sur le port {port}")
-        demo.launch(server_name="0.0.0.0", server_port=port, share=False)
+        demo.launch(
+            server_name="0.0.0.0",
+            server_port=port,
+            share=False,
+            root_path="/"  # 👈 AJOUT : Résout le problème de chargement
+        )
 
 except Exception as e:
     print("="*60)
