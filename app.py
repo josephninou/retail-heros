@@ -67,10 +67,10 @@ def create_dashboard(analysis_data):
     fig = make_subplots(
         rows=2, cols=2,
         subplot_titles=(
-            '📊 Catégories',
-            '🏷️ Marques',
-            '📈 Taux de remplissage',
-            '💰 Valeur du stock'
+            "📊 Catégories",
+            "🏷️ Marques",
+            "📈 Taux de remplissage",
+            "💰 Valeur du stock"
         )
     )
     
@@ -185,15 +185,19 @@ def get_user_stats():
     recent = ""
     for a in stats.get('recent_analyses', [])[-3:]:
         products = a.get('data', {}).get('total_products', 0)
-        recent += f"\n- {a.get('timestamp', '')[:16]}: {products} produits"
+        recent = recent + f"\n- {a.get('timestamp', '')[:16]}: {products} produits"
     
-    return f"""
+    if not recent:
+        recent = "\n- Aucune"
+    
+    result = f"""
 ### 👤 {stats['username']}
 - 📧 {stats.get('email', 'Pas d\'email')}
 - 📅 Membre depuis: {stats.get('created_at', '')[:10]}
 - 📸 Analyses: {stats.get('analyses_count', 0)}
-- 📋 Dernières:{recent or '\n- Aucune'}
+- 📋 Dernières:{recent}
 """
+    return result
 
 # ===================================================
 # ANALYSE
@@ -207,7 +211,7 @@ def process_image(image):
     
     try:
         gc.collect()
-        analysis_counter += 1
+        analysis_counter = analysis_counter + 1
         print(f"🔍 Analyse #{analysis_counter}")
         
         # Détection
@@ -259,10 +263,10 @@ def process_image(image):
 ### 💡 ACTIONS ({len(actions)})
 """
         for action in actions[:3]:
-            report += f"\n- {action.get('action', '')}"
+            report = report + f"\n- {action.get('action', '')}"
         
         if not actions:
-            report += "\n✅ Tout est en ordre !"
+            report = report + "\n✅ Tout est en ordre !"
         
         gc.collect()
         return analysis['annotated_image'], fig, f"✅ Analyse #{analysis_counter} terminée", report
