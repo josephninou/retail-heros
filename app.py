@@ -11,7 +11,7 @@ from plotly.subplots import make_subplots
 import gc
 import torch
 
-# ===== OPTIMISATIONS MÉMOIRE (IMPORTANT POUR RENDER) =====
+# ===== OPTIMISATIONS MÉMOIRE =====
 os.environ['YOLO_VERBOSE'] = 'False'
 os.environ['ULTRALYTICS_MEMORY_LIMIT'] = '256'
 if torch.cuda.is_available():
@@ -129,25 +129,26 @@ def analyze_image(image):
         # 1. Détection des produits
         analysis = detector.analyze_shelf(image)
         
-        if not analysis or not analysis.get('detections'):
-            return None, None, "❌ Aucun produit détecté", ""
+        # 2. Vérification des résultats
+        if not analysis or not analysis.get('detections') or len(analysis['detections']) == 0:
+            return None, create_dashboard(None), "❌ Aucun produit détecté. Essayez une autre image.", ""
         
-        # 2. Analyse des facings
+        # 3. Analyse des facings
         facing_analysis = facing_detector.count_facings(analysis['detections'], image.shape[1])
         analysis['facing_analysis'] = facing_analysis
         
-        # 3. Détection des gaps (ruptures)
+        # 4. Détection des gaps
         gaps = gap_analyzer.detect_gaps(image, analysis['detections'])
         analysis['detected_gaps'] = gaps
         
-        # 4. Génération des actions
+        # 5. Génération des actions
         actions = action_engine.generate_actions(analysis)
         analysis['recommended_actions'] = actions
         
-        # 5. Dashboard
+        # 6. Dashboard
         fig = create_dashboard(analysis)
         
-        # 6. Métriques
+        # 7. Métriques
         metrics = {
             'total_products': analysis.get('total_products', 0),
             'unique_products': analysis.get('unique_products', 0),
@@ -160,10 +161,10 @@ def analyze_image(image):
             'actions': len(actions)
         }
         
-        # 7. Rapport
+        # 8. Rapport
         report = generate_report(analysis, metrics, actions)
         
-        # 8. Sauvegarde dans l'historique
+        # 9. Sauvegarde dans l'historique
         if current_user:
             users = load_users()
             if current_user in users:
@@ -176,15 +177,18 @@ def analyze_image(image):
                 users[current_user]['analyses_count'] = users[current_user].get('analyses_count', 0) + 1
                 save_users(users)
         
+        # 10. Statut dynamique
+        status_text = f"✅ Analyse #{analysis_counter} réussie : {metrics['total_products']} produits détectés (unique: {metrics['unique_products']})"
+        
         gc.collect()
-        return analysis['annotated_image'], fig, f"✅ Analyse #{analysis_counter} terminée", report
+        return analysis['annotated_image'], fig, status_text, report
         
     except Exception as e:
         print(f"❌ Erreur: {str(e)}")
         import traceback
         traceback.print_exc()
         gc.collect()
-        return None, None, f"❌ Erreur: {str(e)}", ""
+        return None, create_dashboard(None), f"❌ Erreur: {str(e)}", ""
 
 def create_dashboard(analysis):
     """Crée le dashboard avec Plotly"""
@@ -311,7 +315,7 @@ with gr.Blocks(title="Retail-Heros", theme=gr.themes.Soft()) as demo:
                 height=400
             )
             analyze_btn = gr.Button("🚀 Analyser", variant="primary", size="lg")
-            status = gr.Textbox(label="Statut", value="Prêt")
+            status = gr.Textbox(label="Statut", value="Prêt à analyser")
         
         with gr.Column(scale=1):
             output_image = gr.Image(label="🖼️ Résultat détection", height=400)
