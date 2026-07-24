@@ -13,19 +13,46 @@ def load_users():
         with open(USERS_FILE, "r") as f:
             return json.load(f)
     except:
-        return {"admin": {"password": hash_password("admin123"), "created_at": str(datetime.now())}}
+        # Créer un compte admin par défaut
+        default_users = {"admin": {"password": "admin123", "created_at": str(datetime.now())}}
+        save_users(default_users)
+        return default_users
 
 def save_users(users):
     with open(USERS_FILE, "w") as f:
         json.dump(users, f, indent=2)
 
 def hash_password(password):
+    """Hash le mot de passe avec un sel"""
     salt = secrets.token_hex(8)
     return salt + ":" + hashlib.sha256((salt + password).encode()).hexdigest()
 
 def verify_password(password, hashed):
-    salt, hash_val = hashed.split(":")
-    return hash_val == hashlib.sha256((salt + password).encode()).hexdigest()
+    """Vérifie si le mot de passe correspond au hash"""
+    # Si le mot de passe n'est pas haché (cas admin par défaut)
+    if ":" not in hashed:
+        return password == hashed
+    try:
+        salt, hash_val = hashed.split(":")
+        return hash_val == hashlib.sha256((salt + password).encode()).hexdigest()
+    except:
+        return False
+
+def migrate_users():
+    """Convertit les anciens mots de passe en clair en hash"""
+    users = load_users()
+    modified = False
+    for username, data in users.items():
+        if "password" in data and ":" not in data["password"]:
+            # Mot de passe en clair → le hacher
+            data["password"] = hash_password(data["password"])
+            modified = True
+    if modified:
+        save_users(users)
+
+# ===== INITIALISATION =====
+# Migrer les utilisateurs existants
+migrate_users()
 
 # ===== INTERFACE =====
 current_user = None
@@ -57,7 +84,6 @@ def register(username, password):
 with gr.Blocks(title="Retail-Heros", theme=gr.themes.Soft()) as demo:
     gr.Markdown("# 🏪 Retail-Heros - Analyse de Rayons")
     
-    # Section authentification
     with gr.Row():
         with gr.Column(scale=1, visible=True) as login_col:
             with gr.Tab("🔐 Connexion"):
@@ -76,13 +102,11 @@ with gr.Blocks(title="Retail-Heros", theme=gr.themes.Soft()) as demo:
         
         with gr.Column(scale=2, visible=False) as app_col:
             gr.Markdown("### 👤 Zone utilisateur")
-            welcome = gr.Markdown("")
             name_input = gr.Textbox(label="Entrez votre nom")
             greet_btn = gr.Button("Dire bonjour")
             greet_output = gr.Textbox(label="Réponse")
             greet_btn.click(fn=lambda name: f"Bonjour {name} !", inputs=name_input, outputs=greet_output)
     
-    # Connexions des événements
     login_btn.click(login, [login_user, login_pass], [login_msg, login_col, app_col])
     logout_btn.click(logout, None, [login_msg, login_col, app_col])
     reg_btn.click(register, [reg_user, reg_pass], reg_msg)
