@@ -5,8 +5,7 @@ import hashlib
 import secrets
 from datetime import datetime
 
-# ===== GESTION DES UTILISATEURS SIMPLE =====
-
+# ===== GESTION DES UTILISATEURS =====
 USERS_FILE = "users.json"
 
 def load_users():
@@ -29,7 +28,6 @@ def verify_password(password, hashed):
     return hash_val == hashlib.sha256((salt + password).encode()).hexdigest()
 
 # ===== INTERFACE =====
-
 current_user = None
 
 def login(username, password):
@@ -56,7 +54,6 @@ def register(username, password):
     return "✅ Compte créé ! Connectez-vous."
 
 # ===== INTERFACE GRADIO =====
-
 with gr.Blocks(title="Retail-Heros", theme=gr.themes.Soft()) as demo:
     gr.Markdown("# 🏪 Retail-Heros - Analyse de Rayons")
     
