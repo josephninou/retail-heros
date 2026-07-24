@@ -13,10 +13,11 @@ class ProductDetector:
         self.load_model()
     
     def load_model(self):
-        """Charge le modèle YOLO"""
+        """Charge le modèle YOLO avec le bon paramètre pour Render"""
         try:
             print("🔄 Chargement de YOLOv8n...")
-            self.model = YOLO('yolov8n.pt')
+            # Correction : forcer weights_only=False pour éviter l'erreur PyTorch 2.6
+            self.model = YOLO('yolov8n.pt', weights_only=False)
             self.model_loaded = True
             print("✅ Modèle YOLO chargé avec succès !")
         except Exception as e:
@@ -26,7 +27,6 @@ class ProductDetector:
     def load_products_db(self):
         """Charge la base de données produits"""
         try:
-            # Chemins possibles pour le fichier
             possible_paths = [
                 'data/products_db.json',
                 '../data/products_db.json',
@@ -38,7 +38,6 @@ class ProductDetector:
                     with open(path, 'r', encoding='utf-8') as f:
                         return json.load(f)
             
-            # Base de données par défaut
             print("⚠️ Base produits non trouvée, utilisation du fallback")
             return {
                 'bottle': {'category': 'Boissons', 'brand': 'Coca-Cola', 'price': 2.50, 'stock_min': 10},
@@ -65,10 +64,8 @@ class ProductDetector:
             return {'error': 'Modèle non chargé'}
         
         try:
-            # Détection
             results = self.model(image, conf=0.25, verbose=False)
             
-            # Extraire les infos
             detections = []
             categories = Counter()
             brands = Counter()
@@ -78,7 +75,6 @@ class ProductDetector:
                 class_name = self.model.names[cls_id]
                 confidence = float(box.conf[0])
                 
-                # Enrichir avec données produits
                 product_info = self.products_db.get(class_name, {})
                 
                 detections.append({
@@ -94,18 +90,14 @@ class ProductDetector:
                 categories[product_info.get('category', 'Inconnu')] += 1
                 brands[product_info.get('brand', 'Inconnu')] += 1
             
-            # Métriques
             total = len(detections)
             unique_products = len(set([d['class'] for d in detections]))
             
-            # Taux de remplissage
             expected_products = len(self.products_db)
             fill_rate = (unique_products / expected_products) * 100 if expected_products > 0 else 0
             
-            # Conformité planogramme
             planogram_compliance = min(100, fill_rate * 0.85)
             
-            # Image annotée
             annotated_img = results[0].plot()
             
             return {
