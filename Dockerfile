@@ -10,14 +10,14 @@ ENV OMP_NUM_THREADS=1
 ENV MKL_NUM_THREADS=1
 ENV ULTRALYTICS_MEMORY_LIMIT=256
 
-# Installer les dépendances système MINIMALES
+# Installer les dépendances système CORRECTES
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
-    libgomp1 \
     libsm6 \
     libxext6 \
     libxrender-dev \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
