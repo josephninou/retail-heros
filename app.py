@@ -2,11 +2,11 @@ import sys
 import traceback
 import os
 
-print("="*60)
+print("=" * 60)
 print("🚀 Démarrage de Retail-Heros...")
 print(f"📁 Dossier courant : {os.getcwd()}")
 print(f"📄 Fichiers présents : {os.listdir('.')}")
-print("="*60)
+print("=" * 60)
 
 try:
     import gradio as gr
@@ -53,7 +53,7 @@ try:
         global current_session, current_user
         if not username or not password:
             return "❌ Remplissez tous les champs", None, None, None
-        
+
         success, session_token, message = user_manager.login(username, password)
         if success:
             current_session = session_token
@@ -83,43 +83,54 @@ try:
         stats = user_manager.get_user_stats(current_user)
         if not stats:
             return "❌ Utilisateur non trouvé"
+
         recent = ""
         for a in stats.get('recent_analyses', [])[-3:]:
             products = a.get('data', {}).get('total_products', 0)
             recent = recent + f"\n- {a.get('timestamp', '')[:16]}: {products} produits"
         if not recent:
             recent = "\n- Aucune analyse"
-        # CORRECTION : utilisation de guillemets doubles à l'intérieur de la f-string
-        return f"### 👤 {stats['username']}\n- 📧 {stats.get('email', "Pas d'email")}\n- 📸 Analyses: {stats.get('analyses_count', 0)}\n- 📋 Dernières:{recent}"
+
+        # Construction robuste sans f-string problématique
+        email = stats.get('email', "Pas d'email")
+        analyses = stats.get('analyses_count', 0)
+        username = stats['username']
+
+        return (
+            f"### 👤 {username}\n"
+            f"- 📧 {email}\n"
+            f"- 📸 Analyses: {analyses}\n"
+            f"- 📋 Dernières:{recent}"
+        )
 
     # ===== FONCTIONS ANALYSE =====
     def analyze_image(image):
         global analysis_counter, current_user
-        
+
         if image is None:
             return None, None, "❌ Aucune image fournie", ""
-        
+
         try:
             gc.collect()
             analysis_counter += 1
             print(f"🔍 Analyse #{analysis_counter} en cours...")
-            
+
             analysis = detector.analyze_shelf(image)
-            
+
             if not analysis or not analysis.get('detections') or len(analysis['detections']) == 0:
                 return None, dashboard.create_dashboard(None), "❌ Aucun produit détecté. Essayez une autre image.", ""
-            
+
             facing_analysis = facing_detector.count_facings(analysis['detections'], image.shape[1])
             analysis['facing_analysis'] = facing_analysis
-            
+
             gaps = gap_analyzer.detect_gaps(image, analysis['detections'])
             analysis['detected_gaps'] = gaps
-            
+
             actions = action_engine.generate_actions(analysis)
             analysis['recommended_actions'] = actions
-            
+
             fig = dashboard.create_dashboard(analysis)
-            
+
             metrics = {
                 'total_products': analysis.get('total_products', 0),
                 'unique_products': analysis.get('unique_products', 0),
@@ -131,7 +142,7 @@ try:
                 'gaps': len(gaps),
                 'actions': len(actions)
             }
-            
+
             report = f"""
 ### 📊 MÉTRIQUES GLOBALES
 - **Total produits**: {metrics['total_products']}
@@ -150,18 +161,18 @@ try:
                     report += f"\n- {action.get('action', '')}"
             else:
                 report += "\n✅ Tout est en ordre !"
-            
+
             if current_user:
                 user_manager.add_analysis_history(current_user, {
                     'timestamp': str(datetime.now()),
                     'total_products': analysis.get('total_products', 0)
                 })
-            
+
             status_text = f"✅ Analyse #{analysis_counter} réussie : {metrics['total_products']} produits détectés (unique: {metrics['unique_products']})"
-            
+
             gc.collect()
             return analysis['annotated_image'], fig, status_text, report
-            
+
         except Exception as e:
             print(f"❌ Erreur analyse: {str(e)}")
             import traceback
@@ -173,7 +184,7 @@ try:
     print("🔄 Création de l'interface Gradio...")
     with gr.Blocks(title="Retail-Heros", theme=gr.themes.Soft()) as demo:
         gr.Markdown("# 🏪 Retail-Heros - Analyse de Rayons")
-        
+
         # Auth
         with gr.Row():
             with gr.Column(scale=1, visible=True) as login_col:
@@ -182,21 +193,21 @@ try:
                     login_pass_input = gr.Textbox(label="Mot de passe", type="password", placeholder="admin123")
                     login_btn = gr.Button("Se connecter", variant="primary")
                     login_msg = gr.Markdown("")
-                
+
                 with gr.Tab("📝 Inscription"):
                     reg_user_input = gr.Textbox(label="Nom", placeholder="Choisissez un nom")
                     reg_pass_input = gr.Textbox(label="Mot de passe", type="password", placeholder="Min 4 caractères")
                     reg_btn = gr.Button("S'inscrire", variant="secondary")
                     reg_msg = gr.Markdown("")
-                
+
                 logout_btn = gr.Button("🚪 Déconnexion", variant="stop", visible=False)
-            
+
             with gr.Column(scale=1, visible=False) as user_col:
                 user_stats = gr.Markdown("### 👤 Profil")
                 refresh_stats = gr.Button("🔄 Rafraîchir", variant="secondary", size="sm")
-        
+
         gr.Markdown("---")
-        
+
         # Analyse
         with gr.Row():
             with gr.Column(scale=1):
@@ -207,17 +218,17 @@ try:
                 )
                 analyze_btn = gr.Button("🚀 Analyser", variant="primary", size="lg")
                 status = gr.Textbox(label="Statut", value="Prêt à analyser")
-            
+
             with gr.Column(scale=1):
                 output_image = gr.Image(label="🖼️ Résultat détection", height=400)
-        
+
         with gr.Row():
             with gr.Column(scale=1):
                 report = gr.Markdown("📋 **Rapport**\n\nUpload une image pour commencer.")
-            
+
             with gr.Column(scale=2):
                 dashboard_plot = gr.Plot(label="📊 Dashboard")
-        
+
         # Événements
         login_btn.click(login_user, [login_user_input, login_pass_input], [login_msg, user_stats, login_col, user_col])
         logout_btn.click(logout_user, None, [login_msg, login_col, user_col, user_stats])
@@ -239,11 +250,11 @@ try:
         )
 
 except Exception as e:
-    print("="*60)
+    print("=" * 60)
     print("❌ ERREUR AU DÉMARRAGE")
-    print("="*60)
+    print("=" * 60)
     traceback.print_exc()
-    print("="*60)
+    print("=" * 60)
     sys.stdout.flush()
     sys.stderr.flush()
     sys.exit(1)
