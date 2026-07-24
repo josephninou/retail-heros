@@ -3,6 +3,8 @@ import cv2
 import numpy as np
 from PIL import Image
 import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
 import pandas as pd
 from datetime import datetime
 import json
@@ -19,470 +21,354 @@ os.environ['ULTRALYTICS_MEMORY_LIMIT'] = '256'
 if torch.cuda.is_available():
     torch.cuda.empty_cache()
 
+# Import des modules
 from models.product_detector import ProductDetector
 from models.facing_detector import FacingDetector
 from models.gap_analyzer import GapAnalyzer
 from utils.action_engine import ActionEngine
-from dashboard import RetailDashboard
 from auth import UserManager
 
 print("="*60)
 print("🏪 Retail-Heros - Démarrage sur Render")
 print("="*60)
 
-# Initialisation des modules
+# Initialisation
 print("🔄 Initialisation des modules...")
 detector = ProductDetector()
 facing_detector = FacingDetector()
 gap_analyzer = GapAnalyzer()
 action_engine = ActionEngine()
-dashboard = RetailDashboard()
 user_manager = UserManager()
 
-# Variables globales
+# Variables
 analysis_counter = 0
 current_session = None
 current_user = None
 
-# ======================================================
-# FONCTIONS D'ANALYSE
-# ======================================================
+# ===================================================
+# DASHBOARD SIMPLIFIÉ
+# ===================================================
 
-def process_shelf_image(image):
-    global analysis_counter
+def create_dashboard(analysis_data):
+    """Crée un dashboard simple avec Plotly"""
     
-    if image is None:
-        return None, None, dashboard.create_empty_dashboard(), "❌ Aucune image fournie", ""
+    if not analysis_data or not analysis_data.get('detections'):
+        fig = go.Figure()
+        fig.add_annotation(
+            text="📸 Upload une image pour voir le dashboard",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=24, color="gray")
+        )
+        fig.update_layout(height=500)
+        return fig
     
-    try:
-        gc.collect()
-        analysis_counter += 1
-        print(f"\n🔍 Analyse #{analysis_counter} en cours...")
-        
-        # 1. Détection
-        analysis = detector.analyze_shelf(image)
-        
-        if not analysis or not analysis.get('detections'):
-            return None, None, dashboard.create_empty_dashboard(), "❌ Aucun produit détecté", ""
-        
-        # 2. Facings
-        facing_analysis = facing_detector.count_facings(analysis['detections'], image.shape[1])
-        analysis['facing_analysis'] = facing_analysis
-        
-        # 3. Gaps
-        gaps = gap_analyzer.detect_gaps(image, analysis['detections'])
-        analysis['detected_gaps'] = gaps
-        
-        # 4. Actions
-        actions = action_engine.generate_actions(analysis)
-        analysis['recommended_actions'] = actions
-        
-        # 5. Dashboard
-        dashboard_fig = dashboard.create_dashboard(analysis)
-        
-        # 6. Métriques
-        metrics = dashboard.create_performance_metrics(analysis)
-        
-        # 7. Rapport
-        report = generate_comprehensive_report(analysis, metrics, actions)
-        
-        # 8. Sauvegarder dans l'historique de l'utilisateur
-        if current_user:
-            user_manager.add_analysis_history(current_user, {
-                'timestamp': datetime.now().isoformat(),
-                'metrics': metrics,
-                'total_products': analysis.get('total_products', 0),
-                'fill_rate': analysis.get('fill_rate', 0)
-            })
-        
-        gc.collect()
-        
-        user_msg = f"✅ Analyse terminée ! 👋 {current_user if current_user else 'Invité'}"
-        
-        return analysis['annotated_image'], dashboard_fig, report, user_msg, json.dumps(metrics, indent=2)
-        
-    except Exception as e:
-        print(f"❌ Erreur: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        gc.collect()
-        return None, None, dashboard.create_empty_dashboard(), f"❌ Erreur: {str(e)}", ""
+    # Créer des subplots
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=(
+            '📊 Catégories',
+            '🏷️ Marques',
+            '📈 Taux de remplissage',
+            '💰 Valeur du stock'
+        )
+    )
+    
+    # Catégories
+    categories = analysis_data.get('categories', {})
+    if categories:
+        fig.add_trace(
+            go.Pie(
+                labels=list(categories.keys()),
+                values=list(categories.values()),
+                hole=0.3
+            ),
+            row=1, col=1
+        )
+    
+    # Marques
+    brands = analysis_data.get('brands', {})
+    if brands:
+        sorted_brands = sorted(brands.items(), key=lambda x: x[1], reverse=True)[:5]
+        fig.add_trace(
+            go.Bar(
+                x=[b[0] for b in sorted_brands],
+                y=[b[1] for b in sorted_brands],
+                marker_color='lightblue'
+            ),
+            row=1, col=2
+        )
+    
+    # Taux de remplissage
+    fill_rate = analysis_data.get('fill_rate', 0)
+    fig.add_trace(
+        go.Indicator(
+            mode="gauge+number",
+            value=fill_rate,
+            title={'text': "Taux de remplissage"},
+            gauge={
+                'axis': {'range': [0, 100]},
+                'steps': [
+                    {'range': [0, 50], 'color': "red"},
+                    {'range': [50, 75], 'color': "orange"},
+                    {'range': [75, 100], 'color': "green"}
+                ]
+            }
+        ),
+        row=2, col=1
+    )
+    
+    # Valeur
+    estimated_value = analysis_data.get('estimated_value', 0)
+    fig.add_trace(
+        go.Indicator(
+            mode="number",
+            value=estimated_value,
+            title={'text': "Valeur du stock (€)"}
+        ),
+        row=2, col=2
+    )
+    
+    fig.update_layout(height=600, showlegend=True)
+    return fig
 
-def generate_comprehensive_report(analysis, metrics, actions):
-    """Génère un rapport complet"""
-    report = f"""
-# 📋 RAPPORT COMPLET - ANALYSE RAYON
-
----
-
-### 📊 MÉTRIQUES GLOBALES
-
-| Métrique | Valeur | Statut |
-|----------|--------|--------|
-| **Total Produits** | {metrics.get('Total Produits', 0)} | ✅ |
-| **Produits Uniques** | {metrics.get('Produits Uniques', 0)} | ✅ |
-| **Taux de Remplissage** | {metrics.get('Taux Remplissage', '0%')} | {get_status_emoji(metrics.get('Taux Remplissage', '0%'))} |
-| **Conformité Planogramme** | {metrics.get('Conformité Planogramme', '0%')} | {get_status_emoji(metrics.get('Conformité Planogramme', '0%'))} |
-| **Valeur Stock** | {metrics.get('Valeur Stock', '0€')} | 💰 |
-| **Catégories** | {metrics.get('Catégories', 0)} | ✅ |
-| **Total Facings** | {analysis.get('facing_analysis', {}).get('total_facings', 0)} | 📦 |
-| **Ruptures** | {len(analysis.get('detected_gaps', []))} | ⚠️ |
-
----
-
-### 📦 DÉTAIL DES PRODUITS
-
-#### Par Catégorie
-"""
-    
-    for category, count in analysis.get('categories', {}).items():
-        report += f"\n- **{category}**: {count} produit(s)"
-    
-    report += f"""
-    
-#### Part de Linéaire (Share of Shelf)
-"""
-    
-    share_of_shelf = analysis.get('facing_analysis', {}).get('share_of_shelf', {})
-    if share_of_shelf:
-        sorted_products = sorted(share_of_shelf.items(), key=lambda x: x[1], reverse=True)[:5]
-        for product, sos in sorted_products:
-            report += f"\n- **{product}**: {sos:.1f}% du linéaire"
-    else:
-        report += "\n- Aucune donnée disponible"
-    
-    report += f"""
-    
-### 💡 ACTIONS RECOMMANDÉES ({len(actions)})
-"""
-    
-    if actions:
-        for i, action in enumerate(actions[:5], 1):
-            priority_emoji = {
-                'urgent': '🔴',
-                'high': '🟡',
-                'medium': '🟠',
-                'low': '🟢'
-            }.get(action.get('priority', 'low'), '⚪')
-            
-            report += f"""
-{i}. {priority_emoji} **{action.get('type', 'action').upper()}** - {action.get('action', '')}
-   *Priorité: {action.get('priority', 'low')}*
-"""
-    else:
-        report += "\n✅ Aucune action recommandée !"
-    
-    report += f"""
-    
-### 🔍 RUPTURES DÉTECTÉES ({len(analysis.get('detected_gaps', []))})
-"""
-    
-    for i, gap in enumerate(analysis.get('detected_gaps', [])[:3], 1):
-        report += f"\n{i}. Espace vide détecté"
-        if gap.get('expected_product'):
-            report += f" (Produit: {gap['expected_product']})"
-    
-    report += f"""
-
----
-*Rapport généré par Retail-Heros*
-*Date: {datetime.now().strftime("%d/%m/%Y à %H:%M")}*
-"""
-    
-    return report
-
-def get_status_emoji(value):
-    if isinstance(value, str):
-        try:
-            value = float(value.replace('%', ''))
-        except:
-            return "⚪"
-    if value >= 80:
-        return "🟢"
-    elif value >= 60:
-        return "🟡"
-    else:
-        return "🔴"
-
-# ======================================================
-# FONCTIONS D'AUTHENTIFICATION
-# ======================================================
+# ===================================================
+# AUTHENTIFICATION
+# ===================================================
 
 def login_user(username, password):
     global current_session, current_user
     
     if not username or not password:
-        return "❌ Veuillez remplir tous les champs", None, None, None, None
+        return "❌ Remplissez tous les champs", None, None, None
     
     success, session_token, message = user_manager.login(username, password)
     
     if success:
         current_session = session_token
         current_user = username
-        stats = get_user_stats_ui()
-        return f"✅ {message}", stats, gr.update(visible=False), gr.update(visible=True), gr.update(visible=True)
+        return f"✅ {message}", gr.update(visible=False), gr.update(visible=True), get_user_stats()
     else:
-        return f"❌ {message}", None, gr.update(visible=True), gr.update(visible=False), gr.update(visible=False)
+        return f"❌ {message}", gr.update(visible=True), gr.update(visible=False), None
 
 def logout_user():
     global current_session, current_user
     
     if current_session:
         user_manager.logout(current_session)
-    
     current_session = None
     current_user = None
     
-    return "👋 Déconnecté", gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), None
+    return "👋 Déconnecté", gr.update(visible=True), gr.update(visible=False), None
 
 def register_user(username, password, email):
     if not username or not password:
-        return "❌ Veuillez remplir tous les champs"
+        return "❌ Remplissez tous les champs"
     
     if len(username) < 3:
-        return "❌ Le nom d'utilisateur doit faire au moins 3 caractères"
+        return "❌ Nom trop court (min 3)"
     
     if len(password) < 6:
-        return "❌ Le mot de passe doit faire au moins 6 caractères"
-    
-    if email and not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
-        return "❌ Email invalide"
+        return "❌ Mot de passe trop court (min 6)"
     
     success, message = user_manager.create_user(username, password, email)
-    
-    if success:
-        return f"✅ {message}. Connectez-vous maintenant !"
-    else:
-        return f"❌ {message}"
+    return f"{'✅' if success else '❌'} {message}"
 
-def get_user_stats_ui():
+def get_user_stats():
     if not current_user:
-        return "🔒 Veuillez vous connecter"
+        return "🔒 Non connecté"
     
     stats = user_manager.get_user_stats(current_user)
     if not stats:
         return "❌ Utilisateur non trouvé"
     
     recent = ""
-    if stats.get('recent_analyses'):
-        for a in stats['recent_analyses'][-3:]:
-            date = a.get('timestamp', '')[:16]
-            products = a.get('data', {}).get('total_products', 0)
-            recent += f"\n- {date}: {products} produits"
-    else:
-        recent = "\n- Aucune analyse"
+    for a in stats.get('recent_analyses', [])[-3:]:
+        products = a.get('data', {}).get('total_products', 0)
+        recent += f"\n- {a.get('timestamp', '')[:16]}: {products} produits"
     
     return f"""
-## 👤 {stats['username']}
-
-📧 **Email**: {stats.get('email', 'Non renseigné')}
-📅 **Membre depuis**: {stats.get('created_at', 'N/A')[:10] if stats.get('created_at') else 'N/A'}
-🔐 **Dernière connexion**: {stats.get('last_login', 'Jamais')[:16] if stats.get('last_login') else 'Jamais'}
-📸 **Analyses réalisées**: {stats.get('analyses_count', 0)}
-
-### 📋 Dernières analyses
-{recent}
+### 👤 {stats['username']}
+- 📧 {stats.get('email', 'Pas d\'email')}
+- 📅 Membre depuis: {stats.get('created_at', '')[:10]}
+- 📸 Analyses: {stats.get('analyses_count', 0)}
+- 📋 Dernières:{recent or '\n- Aucune'}
 """
 
-# ======================================================
-# FONCTIONS DE RÉINITIALISATION DU MOT DE PASSE
-# ======================================================
+# ===================================================
+# ANALYSE
+# ===================================================
 
-def request_password_reset(username_or_email):
-    if not username_or_email:
-        return "❌ Veuillez entrer votre nom d'utilisateur ou email"
+def process_image(image):
+    global analysis_counter
     
-    success, token, email = user_manager.generate_reset_token(username_or_email)
+    if image is None:
+        return None, create_dashboard(None), "❌ Aucune image", ""
     
-    if not success:
-        return f"❌ {token}"
-    
-    reset_link = f"https://retail-heros.onrender.com/reset?token={token}"
-    
-    return f"""
-✅ Un lien de réinitialisation a été envoyé à **{email}**
+    try:
+        gc.collect()
+        analysis_counter += 1
+        print(f"🔍 Analyse #{analysis_counter}")
+        
+        # Détection
+        analysis = detector.analyze_shelf(image)
+        
+        if not analysis or not analysis.get('detections'):
+            return None, create_dashboard(None), "❌ Aucun produit détecté", ""
+        
+        # Facings
+        facing_analysis = facing_detector.count_facings(analysis['detections'], image.shape[1])
+        analysis['facing_analysis'] = facing_analysis
+        
+        # Gaps
+        gaps = gap_analyzer.detect_gaps(image, analysis['detections'])
+        analysis['detected_gaps'] = gaps
+        
+        # Actions
+        actions = action_engine.generate_actions(analysis)
+        analysis['recommended_actions'] = actions
+        
+        # Dashboard
+        fig = create_dashboard(analysis)
+        
+        # Métriques
+        metrics = {
+            'produits': analysis.get('total_products', 0),
+            'taux_remplissage': f"{analysis.get('fill_rate', 0):.1f}%",
+            'valeur': f"{analysis.get('estimated_value', 0):.2f}€",
+            'facings': facing_analysis.get('total_facings', 0),
+            'ruptures': len(gaps)
+        }
+        
+        # Sauvegarder
+        if current_user:
+            user_manager.add_analysis_history(current_user, {
+                'timestamp': datetime.now().isoformat(),
+                'total_products': analysis.get('total_products', 0)
+            })
+        
+        # Rapport
+        report = f"""
+### 📊 RÉSULTATS
+- **Produits**: {metrics['produits']}
+- **Taux de remplissage**: {metrics['taux_remplissage']}
+- **Valeur du stock**: {metrics['valeur']}
+- **Facings**: {metrics['facings']}
+- **Ruptures**: {metrics['ruptures']}
 
-🔗 **Lien de réinitialisation (simulé)** :  
-`{reset_link}`
-
-⚠️ Ce lien expire dans 24 heures.
+### 💡 ACTIONS ({len(actions)})
 """
+        for action in actions[:3]:
+            report += f"\n- {action.get('action', '')}"
+        
+        if not actions:
+            report += "\n✅ Tout est en ordre !"
+        
+        gc.collect()
+        return analysis['annotated_image'], fig, f"✅ Analyse #{analysis_counter} terminée", report
+        
+    except Exception as e:
+        print(f"❌ Erreur: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        gc.collect()
+        return None, create_dashboard(None), f"❌ Erreur: {str(e)}", ""
 
-def reset_password_confirm(token, new_password, confirm_password):
-    if not token:
-        return "❌ Token manquant"
-    
-    if new_password != confirm_password:
-        return "❌ Les mots de passe ne correspondent pas"
-    
-    if len(new_password) < 6:
-        return "❌ Le mot de passe doit faire au moins 6 caractères"
-    
-    success, message = user_manager.reset_password(token, new_password)
-    
-    if success:
-        return f"✅ {message}. Vous pouvez maintenant vous connecter."
-    else:
-        return f"❌ {message}"
-
-# ======================================================
-# INTERFACE GRADIO
-# ======================================================
+# ===================================================
+# INTERFACE GRADIO SIMPLIFIÉE
+# ===================================================
 
 def create_app():
-    with gr.Blocks(
-        title="Retail-Heros - Analyse Rayon",
-        theme=gr.themes.Soft(),
-        css="""
-            .gradio-container {max-width: 1400px !important; margin: auto;}
-            .login-box {background: #f0f4ff; padding: 20px; border-radius: 10px; border: 2px solid #4a90d9;}
-            .stats-box {background: #e8f5e9; padding: 15px; border-radius: 10px;}
-            .report-box {background: #f8f9fa; padding: 20px; border-radius: 10px; max-height: 400px; overflow-y: auto;}
-            .header-title {text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; color: white;}
-        """
-    ) as demo:
+    with gr.Blocks(title="Retail-Heros", theme=gr.themes.Soft()) as demo:
         
         gr.Markdown("""
-        <div class="header-title">
-            <h1>🏪 Retail-Heros</h1>
-            <p>Solution d'analyse de rayons pour le retail</p>
-        </div>
+        # 🏪 Retail-Heros
+        ### Analyse de rayons pour le retail
         """)
         
-        # AUTH SECTION
+        # Auth
         with gr.Row():
-            with gr.Column(scale=1, visible=True) as login_section:
-                gr.Markdown("### 🔐 Connexion / Inscription")
+            with gr.Column(scale=1, visible=True) as login_col:
+                with gr.Tab("🔐 Connexion"):
+                    login_user_input = gr.Textbox(label="Nom", placeholder="admin")
+                    login_pass_input = gr.Textbox(label="Mot de passe", type="password", placeholder="admin123")
+                    login_btn = gr.Button("Se connecter", variant="primary")
+                    login_msg = gr.Markdown("")
                 
-                with gr.Tabs():
-                    with gr.TabItem("🔐 Se connecter"):
-                        login_username = gr.Textbox(label="Nom d'utilisateur", placeholder="Entrez votre nom")
-                        login_password = gr.Textbox(label="Mot de passe", type="password", placeholder="••••••••")
-                        login_btn = gr.Button("🚀 Se connecter", variant="primary", size="lg")
-                        login_result = gr.Markdown("")
-                    
-                    with gr.TabItem("📝 S'inscrire"):
-                        reg_username = gr.Textbox(label="Nom d'utilisateur", placeholder="Choisissez un nom (min 3)")
-                        reg_password = gr.Textbox(label="Mot de passe", type="password", placeholder="Minimum 6 caractères")
-                        reg_email = gr.Textbox(label="Email (optionnel)", placeholder="email@exemple.com")
-                        reg_btn = gr.Button("✅ S'inscrire", variant="secondary", size="lg")
-                        reg_result = gr.Markdown("")
-                    
-                    with gr.TabItem("🔄 Mot de passe oublié"):
-                        reset_input = gr.Textbox(label="Nom d'utilisateur ou Email", placeholder="Entrez votre nom ou email")
-                        reset_request_btn = gr.Button("📧 Envoyer le lien", variant="secondary", size="lg")
-                        reset_result = gr.Markdown("")
-                        
-                        gr.Markdown("---")
-                        reset_token_input = gr.Textbox(label="Token de réinitialisation", placeholder="Collez votre token")
-                        reset_new_password = gr.Textbox(label="Nouveau mot de passe", type="password", placeholder="Minimum 6 caractères")
-                        reset_confirm_password = gr.Textbox(label="Confirmer", type="password", placeholder="Confirmez")
-                        reset_confirm_btn = gr.Button("🔑 Réinitialiser", variant="primary", size="lg")
-                        reset_confirm_result = gr.Markdown("")
+                with gr.Tab("📝 Inscription"):
+                    reg_user = gr.Textbox(label="Nom", placeholder="Choisissez un nom")
+                    reg_pass = gr.Textbox(label="Mot de passe", type="password", placeholder="Min 6 caractères")
+                    reg_email = gr.Textbox(label="Email (optionnel)", placeholder="email@exemple.com")
+                    reg_btn = gr.Button("S'inscrire", variant="secondary")
+                    reg_msg = gr.Markdown("")
                 
-                logout_btn = gr.Button("🚪 Se déconnecter", variant="stop", visible=False, size="lg")
+                logout_btn = gr.Button("🚪 Déconnexion", variant="stop", visible=False)
             
-            with gr.Column(scale=1, visible=False) as user_section:
-                gr.Markdown("### 👤 Mon Profil")
-                user_stats = gr.Markdown("📊 Statistiques utilisateur", elem_classes="stats-box")
-                refresh_stats_btn = gr.Button("🔄 Rafraîchir", variant="secondary", size="sm")
+            with gr.Column(scale=1, visible=False) as user_col:
+                user_stats = gr.Markdown("### 👤 Profil")
         
-        # ANALYSE SECTION
         gr.Markdown("---")
-        gr.Markdown("## 📸 Analyse du rayon")
         
+        # Analyse
         with gr.Row():
             with gr.Column(scale=1):
-                input_image = gr.Image(
-                    label="📸 Upload une photo de rayon",
+                input_img = gr.Image(
+                    label="📸 Upload une photo",
                     type="numpy",
                     sources=["upload", "webcam"],
-                    height=450
+                    height=400
                 )
-                analyze_btn = gr.Button("🚀 Analyser le rayon", variant="primary", size="lg")
-                status = gr.Textbox(label="Statut", interactive=False, value="Prêt - Connectez-vous pour sauvegarder vos analyses")
+                analyze_btn = gr.Button("🚀 Analyser", variant="primary", size="lg")
+                status = gr.Textbox(label="Statut", value="Prêt")
             
             with gr.Column(scale=1):
-                output_image = gr.Image(
-                    label="🖼️ Résultat Détection",
-                    type="numpy",
-                    height=450
-                )
+                output_img = gr.Image(label="🖼️ Résultat", height=400)
         
         with gr.Row():
             with gr.Column(scale=1):
-                report = gr.Markdown("📋 **Rapport d'analyse**\n\nUpload une image pour commencer.", elem_classes="report-box")
+                report = gr.Markdown("📋 **Rapport**\n\nUpload une image")
             
             with gr.Column(scale=2):
-                dashboard_output = gr.Plot(label="📊 Dashboard Complet")
+                dashboard = gr.Plot(label="📊 Dashboard")
         
-        metrics_json = gr.JSON(label="📊 Métriques détaillées", visible=False)
-        
-        # ===== CONNEXIONS =====
+        # Connexions
         login_btn.click(
             fn=login_user,
-            inputs=[login_username, login_password],
-            outputs=[login_result, user_stats, login_section, user_section, logout_btn]
+            inputs=[login_user_input, login_pass_input],
+            outputs=[login_msg, login_col, user_col, user_stats]
         )
         
         reg_btn.click(
             fn=register_user,
-            inputs=[reg_username, reg_password, reg_email],
-            outputs=reg_result
+            inputs=[reg_user, reg_pass, reg_email],
+            outputs=reg_msg
         )
         
         logout_btn.click(
             fn=logout_user,
-            outputs=[login_result, login_section, user_section, logout_btn, user_stats]
-        )
-        
-        reset_request_btn.click(
-            fn=request_password_reset,
-            inputs=reset_input,
-            outputs=reset_result
-        )
-        
-        reset_confirm_btn.click(
-            fn=reset_password_confirm,
-            inputs=[reset_token_input, reset_new_password, reset_confirm_password],
-            outputs=reset_confirm_result
-        )
-        
-        refresh_stats_btn.click(
-            fn=get_user_stats_ui,
-            outputs=user_stats
+            outputs=[login_msg, login_col, user_col, user_stats]
         )
         
         analyze_btn.click(
-            fn=process_shelf_image,
-            inputs=input_image,
-            outputs=[output_image, dashboard_output, report, status, metrics_json]
-        )
-        
-        input_image.change(
-            fn=lambda x: "📸 Image chargée, prêt à analyser !",
-            inputs=None,
-            outputs=status
+            fn=process_image,
+            inputs=input_img,
+            outputs=[output_img, dashboard, status, report]
         )
     
     return demo
 
-# ======================================================
-# LANCEMENT - CORRIGÉ POUR RENDER
-# ======================================================
+# ===================================================
+# LANCEMENT
+# ===================================================
 
 if __name__ == "__main__":
-    # Récupérer le port depuis les variables d'environnement
     port = int(os.environ.get("PORT", 10000))
-    
     print(f"🚀 Démarrage sur le port {port}")
-    print(f"🌐 URL: https://retail-heros.onrender.com")
     
     demo = create_app()
     demo.launch(
         server_name="0.0.0.0",
         server_port=port,
         share=False,
-        debug=False,
-        show_error=True
+        debug=False
     )
