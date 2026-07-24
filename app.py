@@ -218,13 +218,15 @@ try:
             fig.update_layout(height=500)
             return fig
         
-        # Subplots
+        # Subplots avec spécification des types
         fig = make_subplots(
             rows=2, cols=2,
+            specs=[[{"type": "pie"}, {"type": "xy"}],
+                   [{"type": "xy"}, {"type": "xy"}]],
             subplot_titles=("📊 Catégories", "🏷️ Marques", "📈 Taux de remplissage", "💰 Valeur du stock")
         )
         
-        # Catégories
+        # Catégories (pie)
         categories = analysis.get('categories', {})
         if categories:
             fig.add_trace(
@@ -232,7 +234,7 @@ try:
                 row=1, col=1
             )
         
-        # Marques
+        # Marques (bar)
         brands = analysis.get('brands', {})
         if brands:
             sorted_brands = sorted(brands.items(), key=lambda x: x[1], reverse=True)[:5]
@@ -241,7 +243,7 @@ try:
                 row=1, col=2
             )
         
-        # Taux de remplissage
+        # Taux de remplissage (indicator)
         fill_rate = analysis.get('fill_rate', 0)
         fig.add_trace(
             go.Indicator(
@@ -260,7 +262,7 @@ try:
             row=2, col=1
         )
         
-        # Valeur
+        # Valeur (indicator)
         estimated_value = analysis.get('estimated_value', 0)
         fig.add_trace(
             go.Indicator(mode="number", value=estimated_value, title={'text': "Valeur (€)"}),
