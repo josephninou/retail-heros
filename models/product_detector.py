@@ -13,7 +13,6 @@ class ProductDetector:
         self.load_model()
     
     def load_model(self):
-        """Charge le modèle YOLO"""
         try:
             print("🔄 Chargement de YOLOv8n...")
             self.model = YOLO('yolov8n.pt')
@@ -24,7 +23,6 @@ class ProductDetector:
             self.model_loaded = False
     
     def load_products_db(self):
-        """Charge la base de données produits"""
         try:
             possible_paths = [
                 'data/products_db.json',
@@ -54,9 +52,6 @@ class ProductDetector:
             return {}
     
     def analyze_shelf(self, image):
-        """
-        Analyse complète du rayon
-        """
         if not self.model_loaded:
             return {'error': 'Modèle non chargé'}
         
@@ -115,7 +110,6 @@ class ProductDetector:
             return {'error': str(e)}
     
     def analyze_stock_status(self, detections):
-        """Analyse le statut des stocks"""
         stock_status = {}
         for det in detections:
             product = det['class']
