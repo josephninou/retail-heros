@@ -13,16 +13,24 @@ class ProductDetector:
         self.load_model()
     
     def load_model(self):
-        """Charge le modèle YOLO avec le bon paramètre pour Render"""
+        """Charge le modèle YOLO avec gestion d'erreur"""
         try:
             print("🔄 Chargement de YOLOv8n...")
-            # Correction : forcer weights_only=False pour éviter l'erreur PyTorch 2.6
-            self.model = YOLO('yolov8n.pt', weights_only=False)
+            # Version sans weights_only (compatible avec ultralytics)
+            self.model = YOLO('yolov8n.pt')
             self.model_loaded = True
             print("✅ Modèle YOLO chargé avec succès !")
         except Exception as e:
             print(f"❌ Erreur chargement YOLO: {str(e)}")
-            self.model_loaded = False
+            # Tentative de fallback
+            try:
+                print("🔄 Tentative avec un paramètre différent...")
+                self.model = YOLO('yolov8n.pt', task='detect')
+                self.model_loaded = True
+                print("✅ Modèle YOLO chargé avec succès (tentative 2)!")
+            except Exception as e2:
+                print(f"❌ Erreur chargement YOLO (tentative 2): {str(e2)}")
+                self.model_loaded = False
     
     def load_products_db(self):
         """Charge la base de données produits"""
@@ -32,12 +40,10 @@ class ProductDetector:
                 '../data/products_db.json',
                 './data/products_db.json'
             ]
-            
             for path in possible_paths:
                 if os.path.exists(path):
                     with open(path, 'r', encoding='utf-8') as f:
                         return json.load(f)
-            
             print("⚠️ Base produits non trouvée, utilisation du fallback")
             return {
                 'bottle': {'category': 'Boissons', 'brand': 'Coca-Cola', 'price': 2.50, 'stock_min': 10},
